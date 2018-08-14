@@ -108,7 +108,7 @@ class BaseDecisionTree(six.with_metaclass(ABCMeta, BaseEstimator)):
         self.class_weight = class_weight
         self.presort = presort
 
-    def fit(self, X, y, sample_weight=None, check_input=True,
+    def fit(self, X, y, sample_weight=None, target_weight=None, check_input=True,
             X_idx_sorted=None):
 
         random_state = check_random_state(self.random_state)
@@ -135,6 +135,15 @@ class BaseDecisionTree(six.with_metaclass(ABCMeta, BaseEstimator)):
             y = np.reshape(y, (-1, 1))
 
         self.n_outputs_ = y.shape[1]
+
+        if (target_weight is None):
+            target_weight = [1./self.n_outputs_]*self.n_outputs_
+
+        if (len(target_weight) != self.n_outputs_):
+            raise ValueError("Number of target weights=%d does not match "
+                             "number of targets=%d" %
+                             (len(target_weight), self.n_outputs_))
+
 
         if is_classification:
             check_classification_targets(y)
@@ -261,6 +270,10 @@ class BaseDecisionTree(six.with_metaclass(ABCMeta, BaseEstimator)):
                                  "number of samples=%d" %
                                  (len(sample_weight), n_samples))
 
+        if target_weight is not None:
+            if (getattr(target_weight, "dtype", None) != DOUBLE):
+                target_weight = np.ascontiguousarray(target_weight, dtype=DOUBLE)
+
         if expanded_class_weight is not None:
             if sample_weight is not None:
                 sample_weight = sample_weight * expanded_class_weight
@@ -359,7 +372,7 @@ class BaseDecisionTree(six.with_metaclass(ABCMeta, BaseEstimator)):
                                            self.min_impurity_decrease,
                                            min_impurity_split)
 
-        builder.build(self.tree_, X, y, sample_weight, X_idx_sorted)
+        builder.build(self.tree_, X, y, sample_weight, target_weight, X_idx_sorted)
 
         if self.n_outputs_ == 1:
             self.n_classes_ = self.n_classes_[0]
@@ -746,7 +759,7 @@ class DecisionTreeClassifier(BaseDecisionTree, ClassifierMixin):
             min_impurity_split=min_impurity_split,
             presort=presort)
 
-    def fit(self, X, y, sample_weight=None, check_input=True,
+    def fit(self, X, y, sample_weight=None, target_weight=None, check_input=True,
             X_idx_sorted=None):
         """Build a decision tree classifier from the training set (X, y).
 
@@ -786,6 +799,7 @@ class DecisionTreeClassifier(BaseDecisionTree, ClassifierMixin):
         super(DecisionTreeClassifier, self).fit(
             X, y,
             sample_weight=sample_weight,
+            target_weight=target_weight,
             check_input=check_input,
             X_idx_sorted=X_idx_sorted)
         return self
@@ -1081,7 +1095,7 @@ class DecisionTreeRegressor(BaseDecisionTree, RegressorMixin):
             min_impurity_split=min_impurity_split,
             presort=presort)
 
-    def fit(self, X, y, sample_weight=None, check_input=True,
+    def fit(self, X, y, sample_weight=None, target_weight=None, check_input=True,
             X_idx_sorted=None):
         """Build a decision tree regressor from the training set (X, y).
 
@@ -1120,6 +1134,7 @@ class DecisionTreeRegressor(BaseDecisionTree, RegressorMixin):
         super(DecisionTreeRegressor, self).fit(
             X, y,
             sample_weight=sample_weight,
+            target_weight=target_weight,
             check_input=check_input,
             X_idx_sorted=X_idx_sorted)
         return self

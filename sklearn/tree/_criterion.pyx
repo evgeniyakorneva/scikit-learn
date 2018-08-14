@@ -52,6 +52,7 @@ cdef class Criterion:
         pass
 
     cdef int init(self, DOUBLE_t* y, SIZE_t y_stride, DOUBLE_t* sample_weight,
+                  DOUBLE_t* target_weight,
                   double weighted_n_samples, SIZE_t* samples, SIZE_t start,
                   SIZE_t end) nogil except -1:
         """Placeholder for a method which will initialize the criterion.
@@ -231,6 +232,8 @@ cdef class ClassificationCriterion(Criterion):
         self.y_stride = 0
         self.sample_weight = NULL
 
+        self.target_weight = NULL
+
         self.samples = NULL
         self.start = 0
         self.pos = 0
@@ -285,7 +288,7 @@ cdef class ClassificationCriterion(Criterion):
                 self.__getstate__())
 
     cdef int init(self, DOUBLE_t* y, SIZE_t y_stride,
-                  DOUBLE_t* sample_weight, double weighted_n_samples,
+                  DOUBLE_t* sample_weight, DOUBLE_t* target_weight, double weighted_n_samples,
                   SIZE_t* samples, SIZE_t start, SIZE_t end) nogil except -1:
         """Initialize the criterion at node samples[start:end] and
         children samples[start:start] and samples[start:end].
@@ -315,6 +318,7 @@ cdef class ClassificationCriterion(Criterion):
         self.y = y
         self.y_stride = y_stride
         self.sample_weight = sample_weight
+        self.target_weight = target_weight
         self.samples = samples
         self.start = start
         self.end = end
@@ -432,6 +436,7 @@ cdef class ClassificationCriterion(Criterion):
         cdef SIZE_t* n_classes = self.n_classes
         cdef SIZE_t* samples = self.samples
         cdef DOUBLE_t* sample_weight = self.sample_weight
+        cdef DOUBLE_t* target_weight = self.target_weight
 
         cdef SIZE_t i
         cdef SIZE_t p
@@ -551,9 +556,11 @@ cdef class Entropy(ClassificationCriterion):
                     count_k /= self.weighted_n_node_samples
                     entropy -= count_k * log(count_k)
 
+            entropy *= self.target_weight[k]
+
             sum_total += self.sum_stride
 
-        return entropy / self.n_outputs
+        return entropy
 
     cdef void children_impurity(self, double* impurity_left,
                                 double* impurity_right) nogil:
@@ -638,9 +645,11 @@ cdef class Gini(ClassificationCriterion):
             gini += 1.0 - sq_count / (self.weighted_n_node_samples *
                                       self.weighted_n_node_samples)
 
+            gini *= self.target_weight[k]
+
             sum_total += self.sum_stride
 
-        return gini / self.n_outputs
+        return gini
 
     cdef void children_impurity(self, double* impurity_left,
                                 double* impurity_right) nogil:
@@ -681,15 +690,17 @@ cdef class Gini(ClassificationCriterion):
 
             gini_left += 1.0 - sq_count_left / (self.weighted_n_left *
                                                 self.weighted_n_left)
+            gini_left *= self.target_weight[k]
 
             gini_right += 1.0 - sq_count_right / (self.weighted_n_right *
                                                   self.weighted_n_right)
+            gini_right *= self.target_weight[k]
 
             sum_left += self.sum_stride
             sum_right += self.sum_stride
 
-        impurity_left[0] = gini_left / self.n_outputs
-        impurity_right[0] = gini_right / self.n_outputs
+        impurity_left[0] = gini_left
+        impurity_right[0] = gini_right
 
 
 cdef class RegressionCriterion(Criterion):
@@ -722,6 +733,8 @@ cdef class RegressionCriterion(Criterion):
         self.y = NULL
         self.y_stride = 0
         self.sample_weight = NULL
+
+        self.target_weight = NULL
 
         self.samples = NULL
         self.start = 0
@@ -756,7 +769,7 @@ cdef class RegressionCriterion(Criterion):
     def __reduce__(self):
         return (type(self), (self.n_outputs, self.n_samples), self.__getstate__())
 
-    cdef int init(self, DOUBLE_t* y, SIZE_t y_stride, DOUBLE_t* sample_weight,
+    cdef int init(self, DOUBLE_t* y, SIZE_t y_stride, DOUBLE_t* sample_weight, DOUBLE_t* target_weight,
                   double weighted_n_samples, SIZE_t* samples, SIZE_t start,
                   SIZE_t end) nogil except -1:
         """Initialize the criterion at node samples[start:end] and
@@ -765,6 +778,9 @@ cdef class RegressionCriterion(Criterion):
         self.y = y
         self.y_stride = y_stride
         self.sample_weight = sample_weight
+
+        self.target_weight = target_weight
+
         self.samples = samples
         self.start = start
         self.end = end
@@ -830,6 +846,10 @@ cdef class RegressionCriterion(Criterion):
         cdef double* sum_total = self.sum_total
 
         cdef double* sample_weight = self.sample_weight
+
+        cdef double* target_weight = self.target_weight
+
+
         cdef SIZE_t* samples = self.samples
 
         cdef DOUBLE_t* y = self.y
@@ -955,6 +975,9 @@ cdef class MSE(RegressionCriterion):
 
         cdef DOUBLE_t* y = self.y
         cdef DOUBLE_t* sample_weight = self.sample_weight
+
+        cdef DOUBLE_t* target_weight = self.target_weight
+
         cdef SIZE_t* samples = self.samples
         cdef SIZE_t pos = self.pos
         cdef SIZE_t start = self.start
@@ -1023,6 +1046,8 @@ cdef class MAE(RegressionCriterion):
         self.y_stride = 0
         self.sample_weight = NULL
 
+        self.target_weight = NULL
+
         self.samples = NULL
         self.start = 0
         self.pos = 0
@@ -1049,7 +1074,7 @@ cdef class MAE(RegressionCriterion):
             self.left_child[k] = WeightedMedianCalculator(n_samples)
             self.right_child[k] = WeightedMedianCalculator(n_samples)
 
-    cdef int init(self, DOUBLE_t* y, SIZE_t y_stride, DOUBLE_t* sample_weight,
+    cdef int init(self, DOUBLE_t* y, SIZE_t y_stride, DOUBLE_t* sample_weight, DOUBLE_t* target_weight,
                   double weighted_n_samples, SIZE_t* samples, SIZE_t start,
                   SIZE_t end) nogil except -1:
         """Initialize the criterion at node samples[start:end] and
@@ -1063,6 +1088,9 @@ cdef class MAE(RegressionCriterion):
         self.y = y
         self.y_stride = y_stride
         self.sample_weight = sample_weight
+
+        self.target_weight = target_weight
+
         self.samples = samples
         self.start = start
         self.end = end
@@ -1172,6 +1200,9 @@ cdef class MAE(RegressionCriterion):
         """
 
         cdef DOUBLE_t* sample_weight = self.sample_weight
+
+        cdef DOUBLE_t* target_weight = self.target_weight
+
         cdef SIZE_t* samples = self.samples
 
         cdef void** left_child = <void**> self.left_child.data
@@ -1240,6 +1271,9 @@ cdef class MAE(RegressionCriterion):
 
         cdef DOUBLE_t* y = self.y
         cdef DOUBLE_t* sample_weight = self.sample_weight
+
+        cdef DOUBLE_t* target_weight = self.target_weight
+
         cdef SIZE_t* samples = self.samples
         cdef SIZE_t i, p, k
         cdef DOUBLE_t y_ik
@@ -1265,6 +1299,9 @@ cdef class MAE(RegressionCriterion):
 
         cdef DOUBLE_t* y = self.y
         cdef DOUBLE_t* sample_weight = self.sample_weight
+
+        cdef DOUBLE_t* target_weight = self.target_weight
+
         cdef SIZE_t* samples = self.samples
 
         cdef SIZE_t start = self.start
