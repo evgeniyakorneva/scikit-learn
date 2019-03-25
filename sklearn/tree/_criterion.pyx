@@ -556,8 +556,6 @@ cdef class Entropy(ClassificationCriterion):
                     count_k /= self.weighted_n_node_samples
                     entropy -= count_k * log(count_k)
 
-            entropy *= self.target_weight[k]
-
             sum_total += self.sum_stride
 
         return entropy
@@ -642,10 +640,8 @@ cdef class Gini(ClassificationCriterion):
                 count_k = sum_total[c]
                 sq_count += count_k * count_k
 
-            gini += 1.0 - sq_count / (self.weighted_n_node_samples *
-                                      self.weighted_n_node_samples)
-
-            gini *= self.target_weight[k]
+            gini += (1.0 - sq_count / (self.weighted_n_node_samples *
+                                      self.weighted_n_node_samples))*self.target_weight[k]
 
             sum_total += self.sum_stride
 
@@ -688,13 +684,11 @@ cdef class Gini(ClassificationCriterion):
                 count_k = sum_right[c]
                 sq_count_right += count_k * count_k
 
-            gini_left += 1.0 - sq_count_left / (self.weighted_n_left *
-                                                self.weighted_n_left)
-            gini_left *= self.target_weight[k]
+            gini_left += (1.0 - sq_count_left / (self.weighted_n_left *
+                                                self.weighted_n_left))
 
-            gini_right += 1.0 - sq_count_right / (self.weighted_n_right *
-                                                  self.weighted_n_right)
-            gini_right *= self.target_weight[k]
+            gini_right += (1.0 - sq_count_right / (self.weighted_n_right *
+                                                  self.weighted_n_right))
 
             sum_left += self.sum_stride
             sum_right += self.sum_stride
@@ -936,9 +930,9 @@ cdef class MSE(RegressionCriterion):
 
         impurity = self.sq_sum_total / self.weighted_n_node_samples
         for k in range(self.n_outputs):
-            impurity -= (sum_total[k] / self.weighted_n_node_samples)**2.0
+            impurity -= self.target_weight[k]*self.target_weight[k]*(sum_total[k] / self.weighted_n_node_samples)**2.0
 
-        return impurity / self.n_outputs
+        return impurity
 
     cdef double proxy_impurity_improvement(self) nogil:
         """Compute a proxy of the impurity reduction
@@ -960,8 +954,8 @@ cdef class MSE(RegressionCriterion):
         cdef double proxy_impurity_right = 0.0
 
         for k in range(self.n_outputs):
-            proxy_impurity_left += sum_left[k] * sum_left[k]
-            proxy_impurity_right += sum_right[k] * sum_right[k]
+            proxy_impurity_left += self.target_weight[k]*sum_left[k] * sum_left[k]
+            proxy_impurity_right += self.target_weight[k]*sum_right[k] * sum_right[k]
 
         return (proxy_impurity_left / self.weighted_n_left +
                 proxy_impurity_right / self.weighted_n_right)
@@ -1008,13 +1002,10 @@ cdef class MSE(RegressionCriterion):
 
         impurity_left[0] = sq_sum_left / self.weighted_n_left
         impurity_right[0] = sq_sum_right / self.weighted_n_right
-
+	
         for k in range(self.n_outputs):
-            impurity_left[0] -= (sum_left[k] / self.weighted_n_left) ** 2.0
-            impurity_right[0] -= (sum_right[k] / self.weighted_n_right) ** 2.0
-
-        impurity_left[0] /= self.n_outputs
-        impurity_right[0] /= self.n_outputs
+            impurity_left[0] -= self.target_weight[k]*(sum_left[k] / self.weighted_n_left) ** 2.0
+            impurity_right[0] -= self.target_weight[k]*(sum_right[k] / self.weighted_n_right) ** 2.0
 
 cdef class MAE(RegressionCriterion):
     """Mean absolute error impurity criterion

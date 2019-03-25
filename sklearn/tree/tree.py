@@ -144,6 +144,7 @@ class BaseDecisionTree(six.with_metaclass(ABCMeta, BaseEstimator)):
                              "number of targets=%d" %
                              (len(target_weight), self.n_outputs_))
 
+        self.target_weight = target_weight
 
         if is_classification:
             check_classification_targets(y)
